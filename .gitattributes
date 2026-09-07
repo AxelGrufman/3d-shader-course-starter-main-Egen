@@ -1,0 +1,14 @@
+* text=auto
+
+*.cpp text eol=lf
+*.c text eol=lf
+*.h text eol=lf
+*.hpp text eol=lf
+*.glsl text eol=lf
+*.vert text eol=lf
+*.frag text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+*.md text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
