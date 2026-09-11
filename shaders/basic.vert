@@ -27,23 +27,13 @@ void addWave(
 {
     vec2 waveDirection = normalize(direction);
 
-    float phase =
-        dot(position, waveDirection) * frequency +
-        time * speed +
-        phaseOffset;
+    float phase =dot(position, waveDirection) * frequency + time * speed + phaseOffset;
 
-    height +=
-        amplitude *
-        sin(phase);
+    height += amplitude * sin(phase);
 
-    float slope =
-        amplitude *
-        frequency *
-        cos(phase);
+    float slope = amplitude * frequency * cos(phase);
 
-    gradient +=
-        slope *
-        waveDirection;
+    gradient += slope * waveDirection;
 }
 
 void main()
@@ -81,37 +71,20 @@ void main()
         height,
         gradient);
 
-    vec3 displacedPosition =
-        aPosition;
+    vec3 displacedPosition = aPosition;
 
-    displacedPosition.y +=
-        height;
+    displacedPosition.y += height;
 
     vec3 localNormal =
-        normalize(
-            vec3(
-                -gradient.x,
-                aNormal.y,
-                -gradient.y));
+        normalize(vec3(-gradient.x, aNormal.y, -gradient.y));
 
-    vec4 world =
-        model *
-        vec4(
-            displacedPosition,
-            1.0);
+    vec4 world = model * vec4(displacedPosition, 1.0);
 
-    worldPosition =
-        world.xyz;
+    worldPosition = world.xyz;
 
-    worldNormal =
-        normalize(
-            normalMatrix *
-            localNormal);
+    worldNormal = normalize(normalMatrix * localNormal);
 
     uv = aUV;
 
-    gl_Position =
-        projection *
-        view *
-        world;
+    gl_Position = projection * view * world;
 }

@@ -5,7 +5,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <algorithm>
 #include <cstddef>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -15,6 +17,7 @@
 
 namespace
 {
+
     constexpr int WindowWidth = 900;
     constexpr int WindowHeight = 600;
 
@@ -41,19 +44,84 @@ namespace
         std::vector<unsigned int> indices;
     };
 
-    void glfwErrorCallback(int error, const char* description)
+    struct Camera
     {
-        std::cerr << "GLFW error (" << error << "): "
-            << description << '\n';
+        glm::vec3 position{ 0.0f, 2.8f, 5.5f };
+        glm::vec3 front{ 0.0f, 0.0f, -1.0f };
+        glm::vec3 up{ 0.0f, 1.0f, 0.0f };
+        glm::vec3 right{ 1.0f, 0.0f, 0.0f };
+
+        const glm::vec3 worldUp{ 0.0f, 1.0f, 0.0f };
+
+        float yaw = -90.0f;
+        float pitch = -20.0f;
+
+        float movementSpeed = 3.5f;
+        float mouseSensitivity = 0.10f;
+
+        bool firstMouseMovement = true;
+        double previousMouseX = 0.0;
+        double previousMouseY = 0.0;
+    };
+
+    void updateCameraVectors(Camera& camera)
+    {
+        const float yawRadians =
+            glm::radians(camera.yaw);
+
+        const float pitchRadians =
+            glm::radians(camera.pitch);
+
+        glm::vec3 front;
+
+        front.x =
+            std::cos(yawRadians) *
+            std::cos(pitchRadians);
+
+        front.y =
+            std::sin(pitchRadians);
+
+        front.z =
+            std::sin(yawRadians) *
+            std::cos(pitchRadians);
+
+        camera.front =
+            glm::normalize(front);
+
+        camera.right =
+            glm::normalize(
+                glm::cross(
+                    camera.front,
+                    camera.worldUp));
+
+        camera.up =
+            glm::normalize(
+                glm::cross(
+                    camera.right,
+                    camera.front));
     }
 
-    std::string readTextFile(const std::string& path)
+    void glfwErrorCallback(
+        int error,
+        const char* description)
+    {
+        std::cerr
+            << "GLFW error ("
+            << error
+            << "): "
+            << description
+            << '\n';
+    }
+
+    std::string readTextFile(
+        const std::string& path)
     {
         std::ifstream file(path);
 
         if (!file)
         {
-            throw std::runtime_error("Could not open file: " + path);
+            throw std::runtime_error(
+                "Could not open file: " + path);
         }
 
         std::ostringstream contents;
@@ -67,19 +135,35 @@ namespace
         const std::string& source,
         const std::string& label)
     {
-        const GLuint shader = glCreateShader(type);
-        const char* sourcePointer = source.c_str();
+        const GLuint shader =
+            glCreateShader(type);
 
-        glShaderSource(shader, 1, &sourcePointer, nullptr);
+        const char* sourcePointer =
+            source.c_str();
+
+        glShaderSource(
+            shader,
+            1,
+            &sourcePointer,
+            nullptr);
+
         glCompileShader(shader);
 
         GLint success = GL_FALSE;
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+
+        glGetShaderiv(
+            shader,
+            GL_COMPILE_STATUS,
+            &success);
 
         if (success == GL_FALSE)
         {
             GLint logLength = 0;
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
+
+            glGetShaderiv(
+                shader,
+                GL_INFO_LOG_LENGTH,
+                &logLength);
 
             std::string log(
                 static_cast<std::size_t>(logLength),
@@ -119,23 +203,34 @@ namespace
 
         try
         {
-            vertexShader = compileShader(
-                GL_VERTEX_SHADER,
-                vertexSource,
-                vertexPath);
+            vertexShader =
+                compileShader(
+                    GL_VERTEX_SHADER,
+                    vertexSource,
+                    vertexPath);
 
-            fragmentShader = compileShader(
-                GL_FRAGMENT_SHADER,
-                fragmentSource,
-                fragmentPath);
+            fragmentShader =
+                compileShader(
+                    GL_FRAGMENT_SHADER,
+                    fragmentSource,
+                    fragmentPath);
 
-            program = glCreateProgram();
+            program =
+                glCreateProgram();
 
-            glAttachShader(program, vertexShader);
-            glAttachShader(program, fragmentShader);
+            glAttachShader(
+                program,
+                vertexShader);
+
+            glAttachShader(
+                program,
+                fragmentShader);
+
             glLinkProgram(program);
 
-            GLint success = GL_FALSE;
+            GLint success =
+                GL_FALSE;
+
             glGetProgramiv(
                 program,
                 GL_LINK_STATUS,
@@ -144,6 +239,7 @@ namespace
             if (success == GL_FALSE)
             {
                 GLint logLength = 0;
+
                 glGetProgramiv(
                     program,
                     GL_INFO_LOG_LENGTH,
@@ -160,7 +256,8 @@ namespace
                     log.data());
 
                 throw std::runtime_error(
-                    "Shader program link failed:\n" + log);
+                    "Shader program link failed:\n" +
+                    log);
             }
         }
         catch (...)
@@ -205,25 +302,35 @@ namespace
             resolution + 1;
 
         mesh.vertices.reserve(
-            static_cast<std::size_t>(verticesPerSide) *
+            static_cast<std::size_t>(
+                verticesPerSide) *
             verticesPerSide);
 
         mesh.indices.reserve(
-            static_cast<std::size_t>(resolution) *
+            static_cast<std::size_t>(
+                resolution) *
             resolution *
             6);
 
-        for (unsigned int z = 0; z <= resolution; ++z)
+        for (
+            unsigned int z = 0;
+            z <= resolution;
+            ++z)
         {
-            for (unsigned int x = 0; x <= resolution; ++x)
+            for (
+                unsigned int x = 0;
+                x <= resolution;
+                ++x)
             {
                 const float u =
                     static_cast<float>(x) /
-                    static_cast<float>(resolution);
+                    static_cast<float>(
+                        resolution);
 
                 const float v =
                     static_cast<float>(z) /
-                    static_cast<float>(resolution);
+                    static_cast<float>(
+                        resolution);
 
                 const float worldX =
                     (u - 0.5f) * size;
@@ -246,9 +353,15 @@ namespace
             }
         }
 
-        for (unsigned int z = 0; z < resolution; ++z)
+        for (
+            unsigned int z = 0;
+            z < resolution;
+            ++z)
         {
-            for (unsigned int x = 0; x < resolution; ++x)
+            for (
+                unsigned int x = 0;
+                x < resolution;
+                ++x)
             {
                 const unsigned int topLeft =
                     z * verticesPerSide + x;
@@ -257,19 +370,30 @@ namespace
                     topLeft + 1;
 
                 const unsigned int bottomLeft =
-                    (z + 1) * verticesPerSide + x;
+                    (z + 1) *
+                    verticesPerSide +
+                    x;
 
                 const unsigned int bottomRight =
                     bottomLeft + 1;
 
-                // Counter-clockwise when viewed from above.
-                mesh.indices.push_back(topLeft);
-                mesh.indices.push_back(bottomLeft);
-                mesh.indices.push_back(topRight);
+                mesh.indices.push_back(
+                    topLeft);
 
-                mesh.indices.push_back(topRight);
-                mesh.indices.push_back(bottomLeft);
-                mesh.indices.push_back(bottomRight);
+                mesh.indices.push_back(
+                    bottomLeft);
+
+                mesh.indices.push_back(
+                    topRight);
+
+                mesh.indices.push_back(
+                    topRight);
+
+                mesh.indices.push_back(
+                    bottomLeft);
+
+                mesh.indices.push_back(
+                    bottomRight);
             }
         }
 
@@ -281,30 +405,179 @@ namespace
         int width,
         int height)
     {
-        glViewport(0, 0, width, height);
+        glViewport(
+            0,
+            0,
+            width,
+            height);
     }
 
-    void processInput(GLFWwindow* window)
+    void mouseCallback(
+        GLFWwindow* window,
+        double mouseX,
+        double mouseY)
     {
-        if (glfwGetKey(
-            window,
-            GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        auto* camera =
+            static_cast<Camera*>(
+                glfwGetWindowUserPointer(
+                    window));
+
+        if (camera == nullptr)
+        {
+            return;
+        }
+
+        if (camera->firstMouseMovement)
+        {
+            camera->previousMouseX =
+                mouseX;
+
+            camera->previousMouseY =
+                mouseY;
+
+            camera->firstMouseMovement =
+                false;
+
+            return;
+        }
+
+        double xOffset =
+            mouseX -
+            camera->previousMouseX;
+
+        double yOffset =
+            camera->previousMouseY -
+            mouseY;
+
+        camera->previousMouseX =
+            mouseX;
+
+        camera->previousMouseY =
+            mouseY;
+
+        xOffset *=
+            camera->mouseSensitivity;
+
+        yOffset *=
+            camera->mouseSensitivity;
+
+        camera->yaw +=
+            static_cast<float>(
+                xOffset);
+
+        camera->pitch +=
+            static_cast<float>(
+                yOffset);
+
+        camera->pitch =
+            std::clamp(
+                camera->pitch,
+                -89.0f,
+                89.0f);
+
+        updateCameraVectors(
+            *camera);
+    }
+
+    void processInput(
+        GLFWwindow* window,
+        Camera& camera,
+        float deltaTime)
+    {
+        if (
+            glfwGetKey(
+                window,
+                GLFW_KEY_ESCAPE) ==
+            GLFW_PRESS)
         {
             glfwSetWindowShouldClose(
                 window,
                 GLFW_TRUE);
         }
+
+        const float velocity =
+            camera.movementSpeed *
+            deltaTime;
+
+        if (
+            glfwGetKey(
+                window,
+                GLFW_KEY_W) ==
+            GLFW_PRESS)
+        {
+            camera.position +=
+                camera.front *
+                velocity;
+        }
+
+        if (
+            glfwGetKey(
+                window,
+                GLFW_KEY_S) ==
+            GLFW_PRESS)
+        {
+            camera.position -=
+                camera.front *
+                velocity;
+        }
+
+        if (
+            glfwGetKey(
+                window,
+                GLFW_KEY_A) ==
+            GLFW_PRESS)
+        {
+            camera.position -=
+                camera.right *
+                velocity;
+        }
+
+        if (
+            glfwGetKey(
+                window,
+                GLFW_KEY_D) ==
+            GLFW_PRESS)
+        {
+            camera.position +=
+                camera.right *
+                velocity;
+        }
+
+        if (
+            glfwGetKey(
+                window,
+                GLFW_KEY_SPACE) ==
+            GLFW_PRESS)
+        {
+            camera.position +=
+                camera.worldUp *
+                velocity;
+        }
+
+        if (
+            glfwGetKey(
+                window,
+                GLFW_KEY_LEFT_SHIFT) ==
+            GLFW_PRESS)
+        {
+            camera.position -=
+                camera.worldUp *
+                velocity;
+        }
     }
 
-} // namespace
+} 
 
 int main()
 {
-    glfwSetErrorCallback(glfwErrorCallback);
+    glfwSetErrorCallback(
+        glfwErrorCallback);
 
     if (glfwInit() != GLFW_TRUE)
     {
-        std::cerr << "Failed to initialize GLFW.\n";
+        std::cerr
+            << "Failed to initialize GLFW.\n";
+
         return 1;
     }
 
@@ -326,12 +599,13 @@ int main()
         GLFW_TRUE);
 #endif
 
-    GLFWwindow* window = glfwCreateWindow(
-        WindowWidth,
-        WindowHeight,
-        "Realistic Water",
-        nullptr,
-        nullptr);
+    GLFWwindow* window =
+        glfwCreateWindow(
+            WindowWidth,
+            WindowHeight,
+            "Realistic Water",
+            nullptr,
+            nullptr);
 
     if (window == nullptr)
     {
@@ -339,10 +613,13 @@ int main()
             << "Failed to create a GLFW window.\n";
 
         glfwTerminate();
+
         return 1;
     }
 
-    glfwMakeContextCurrent(window);
+    glfwMakeContextCurrent(
+        window);
+
     glfwSetFramebufferSizeCallback(
         window,
         framebufferSizeCallback);
@@ -350,7 +627,8 @@ int main()
     glfwSwapInterval(1);
 
     const int loadedVersion =
-        gladLoadGL(glfwGetProcAddress);
+        gladLoadGL(
+            glfwGetProcAddress);
 
     if (loadedVersion == 0)
     {
@@ -373,21 +651,27 @@ int main()
         << glGetString(GL_RENDERER)
         << '\n';
 
-    int framebufferWidth = 0;
-    int framebufferHeight = 0;
+    glEnable(
+        GL_DEPTH_TEST);
 
-    glfwGetFramebufferSize(
+    Camera camera;
+
+    updateCameraVectors(
+        camera);
+
+    glfwSetWindowUserPointer(
         window,
-        &framebufferWidth,
-        &framebufferHeight);
+        &camera);
 
-    glViewport(
-        0,
-        0,
-        framebufferWidth,
-        framebufferHeight);
+    glfwSetCursorPosCallback(
+        window,
+        mouseCallback);
 
-    glEnable(GL_DEPTH_TEST);
+
+    glfwSetInputMode(
+        window,
+        GLFW_CURSOR,
+        GLFW_CURSOR_DISABLED);
 
     WaterMesh waterMesh;
 
@@ -398,7 +682,8 @@ int main()
                 WaterResolution,
                 WaterSize);
     }
-    catch (const std::exception& exception)
+    catch (
+        const std::exception& exception)
     {
         std::cerr
             << exception.what()
@@ -414,11 +699,20 @@ int main()
     GLuint vbo = 0;
     GLuint ebo = 0;
 
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
+    glGenVertexArrays(
+        1,
+        &vao);
 
-    glBindVertexArray(vao);
+    glGenBuffers(
+        1,
+        &vbo);
+
+    glGenBuffers(
+        1,
+        &ebo);
+
+    glBindVertexArray(
+        vao);
 
     glBindBuffer(
         GL_ARRAY_BUFFER,
@@ -451,9 +745,12 @@ int main()
         GL_FALSE,
         sizeof(WaterVertex),
         reinterpret_cast<void*>(
-            offsetof(WaterVertex, px)));
+            offsetof(
+                WaterVertex,
+                px)));
 
-    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(
+        0);
 
     glVertexAttribPointer(
         1,
@@ -462,9 +759,12 @@ int main()
         GL_FALSE,
         sizeof(WaterVertex),
         reinterpret_cast<void*>(
-            offsetof(WaterVertex, nx)));
+            offsetof(
+                WaterVertex,
+                nx)));
 
-    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(
+        1);
 
     glVertexAttribPointer(
         2,
@@ -473,11 +773,15 @@ int main()
         GL_FALSE,
         sizeof(WaterVertex),
         reinterpret_cast<void*>(
-            offsetof(WaterVertex, u)));
+            offsetof(
+                WaterVertex,
+                u)));
 
-    glEnableVertexAttribArray(2);
+    glEnableVertexAttribArray(
+        2);
 
-    glBindVertexArray(0);
+    glBindVertexArray(
+        0);
 
     GLuint shaderProgram = 0;
 
@@ -488,15 +792,24 @@ int main()
                 "shaders/basic.vert",
                 "shaders/basic.frag");
     }
-    catch (const std::exception& exception)
+    catch (
+        const std::exception& exception)
     {
         std::cerr
             << exception.what()
             << '\n';
 
-        glDeleteBuffers(1, &ebo);
-        glDeleteBuffers(1, &vbo);
-        glDeleteVertexArrays(1, &vao);
+        glDeleteBuffers(
+            1,
+            &ebo);
+
+        glDeleteBuffers(
+            1,
+            &vbo);
+
+        glDeleteVertexArrays(
+            1,
+            &vao);
 
         glfwDestroyWindow(window);
         glfwTerminate();
@@ -564,29 +877,14 @@ int main()
             shaderProgram,
             "shininess");
 
-    const glm::mat4 model(1.0f);
+    const glm::mat4 model(
+        1.0f);
 
     const glm::mat3 normalMatrix =
         glm::transpose(
             glm::inverse(
-                glm::mat3(model)));
-
-    const glm::vec3 viewPosition(
-        0.0f,
-        2.8f,
-        5.5f);
-
-    const glm::mat4 view =
-        glm::lookAt(
-            viewPosition,
-            glm::vec3(
-                0.0f,
-                0.0f,
-                0.0f),
-            glm::vec3(
-                0.0f,
-                1.0f,
-                0.0f));
+                glm::mat3(
+                    model)));
 
     const glm::vec3 lightDirection =
         glm::normalize(
@@ -609,13 +907,14 @@ int main()
         0.12f;
 
     const float specularStrength =
-        1.0f;
+        0.45f;
 
     const float shininess =
         96.0f;
 
     const float fieldOfView =
-        glm::radians(45.0f);
+        glm::radians(
+            45.0f);
 
     const float nearPlane =
         0.1f;
@@ -627,11 +926,33 @@ int main()
         static_cast<GLsizei>(
             waterMesh.indices.size());
 
+    float previousFrameTime =
+        static_cast<float>(
+            glfwGetTime());
+
     while (
-        glfwWindowShouldClose(window) ==
+        glfwWindowShouldClose(
+            window) ==
         GLFW_FALSE)
     {
-        processInput(window);
+        const float currentFrameTime =
+            static_cast<float>(
+                glfwGetTime());
+
+        const float deltaTime =
+            currentFrameTime -
+            previousFrameTime;
+
+        previousFrameTime =
+            currentFrameTime;
+
+        processInput(
+            window,
+            camera,
+            deltaTime);
+
+        int framebufferWidth = 0;
+        int framebufferHeight = 0;
 
         glfwGetFramebufferSize(
             window,
@@ -647,8 +968,10 @@ int main()
         }
 
         const float aspectRatio =
-            static_cast<float>(framebufferWidth) /
-            static_cast<float>(framebufferHeight);
+            static_cast<float>(
+                framebufferWidth) /
+            static_cast<float>(
+                framebufferHeight);
 
         const glm::mat4 projection =
             glm::perspective(
@@ -656,6 +979,13 @@ int main()
                 aspectRatio,
                 nearPlane,
                 farPlane);
+
+        const glm::mat4 view =
+            glm::lookAt(
+                camera.position,
+                camera.position +
+                camera.front,
+                camera.up);
 
         glViewport(
             0,
@@ -673,36 +1003,40 @@ int main()
             GL_COLOR_BUFFER_BIT |
             GL_DEPTH_BUFFER_BIT);
 
-        glUseProgram(shaderProgram);
+        glUseProgram(
+            shaderProgram);
 
         glUniformMatrix4fv(
             modelLocation,
             1,
             GL_FALSE,
-            glm::value_ptr(model));
+            glm::value_ptr(
+                model));
 
         glUniformMatrix4fv(
             viewLocation,
             1,
             GL_FALSE,
-            glm::value_ptr(view));
+            glm::value_ptr(
+                view));
 
         glUniformMatrix4fv(
             projectionLocation,
             1,
             GL_FALSE,
-            glm::value_ptr(projection));
+            glm::value_ptr(
+                projection));
 
         glUniformMatrix3fv(
             normalMatrixLocation,
             1,
             GL_FALSE,
-            glm::value_ptr(normalMatrix));
+            glm::value_ptr(
+                normalMatrix));
 
         glUniform1f(
             timeLocation,
-            static_cast<float>(
-                glfwGetTime()));
+            currentFrameTime);
 
         glUniform3fv(
             lightDirectionLocation,
@@ -716,11 +1050,12 @@ int main()
             glm::value_ptr(
                 lightColor));
 
+
         glUniform3fv(
             viewPositionLocation,
             1,
             glm::value_ptr(
-                viewPosition));
+                camera.position));
 
         glUniform3fv(
             baseColorLocation,
@@ -740,7 +1075,8 @@ int main()
             shininessLocation,
             shininess);
 
-        glBindVertexArray(vao);
+        glBindVertexArray(
+            vao);
 
         glDrawElements(
             GL_TRIANGLES,
@@ -748,13 +1084,17 @@ int main()
             GL_UNSIGNED_INT,
             nullptr);
 
-        glBindVertexArray(0);
+        glBindVertexArray(
+            0);
 
-        glfwSwapBuffers(window);
+        glfwSwapBuffers(
+            window);
+
         glfwPollEvents();
     }
 
-    glDeleteProgram(shaderProgram);
+    glDeleteProgram(
+        shaderProgram);
 
     glDeleteBuffers(
         1,
@@ -768,7 +1108,9 @@ int main()
         1,
         &vao);
 
-    glfwDestroyWindow(window);
+    glfwDestroyWindow(
+        window);
+
     glfwTerminate();
 
     return 0;

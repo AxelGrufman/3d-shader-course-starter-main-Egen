@@ -17,62 +17,33 @@ out vec4 FragColor;
 
 void main()
 {
-    vec3 normal =
-        normalize(worldNormal);
+    vec3 N = normalize(worldNormal);
+    vec3 L = normalize(lightDirection);
+    vec3 V = normalize(viewPosition - worldPosition);
 
-    vec3 light =
-        normalize(lightDirection);
+    float cosTheta = clamp(dot(N, V), 0.0, 1.0);
+    const float F0 = 0.02;
+    float fresnel = F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 
-    float diffuseFactor =
-        max(
-            dot(normal, light),
-            0.0);
+    float diffuseFactor = max(dot(N, L), 0.0);
 
-    vec3 viewDirection =
-        normalize(
-            viewPosition -
-            worldPosition);
+    vec3 ambient = ambientStrength * baseColor;
+    vec3 diffuse = diffuseFactor * baseColor * lightColor;
+    vec3 waterColor = ambient + diffuse;
 
-    vec3 halfwayDirection =
-        normalize(
-            light +
-            viewDirection);
-
+    const vec3 skyColor = vec3(0.30, 0.60, 0.90);
+    vec3 reflectedWater = mix(waterColor, skyColor, fresnel);
+    vec3 H = normalize(L + V);
     float specularFactor = 0.0;
 
     if (diffuseFactor > 0.0)
     {
-        specularFactor =
-            pow(
-                max(
-                    dot(
-                        normal,
-                        halfwayDirection),
-                    0.0),
-                shininess);
+        specularFactor = pow(max(dot(N, H), 0.0), shininess);
     }
 
-    vec3 ambient =
-        ambientStrength *
-        baseColor;
+    vec3 specular = specularStrength * specularFactor * fresnel * lightColor;
 
-    vec3 diffuse =
-        diffuseFactor *
-        baseColor *
-        lightColor;
-
-    vec3 specular =
-        specularStrength *
-        specularFactor *
-        lightColor;
-
-    vec3 finalColor =
-        ambient +
-        diffuse +
-        specular;
-
-    FragColor =
-        vec4(
-            finalColor,
-            1.0);
+    vec3 finalColor = reflectedWater + specular;
+    FragColor = vec4(finalColor, 1.0);
 }
+
